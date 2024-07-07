@@ -9,16 +9,32 @@ from langchain.chains import LLMChain
 from dotenv import load_dotenv
 import os
 
+# Set the page configuration at the top of the script
+st.set_page_config(page_title="CustomerCareBot", page_icon="🤖")
+
 load_dotenv()
 
 os.environ['OPENAI_API_KEY'] =os.getenv('OPENAI_API_KEY')
 
-# 1. Vectorise the sales response csv data
-loader = CSVLoader(file_path="Customer_Service_Assistants.csv")
-documents = loader.load()
+# Path for the FAISS index
+FAISS_INDEX_PATH = "faiss_index"
 
-embeddings = OpenAIEmbeddings()
-db = FAISS.from_documents(documents, embeddings)
+# Load or create FAISS index
+def load_or_create_faiss_index():
+    embeddings = OpenAIEmbeddings()
+    if os.path.exists(FAISS_INDEX_PATH):
+        db = FAISS.load_local(FAISS_INDEX_PATH, embeddings, allow_dangerous_deserialization = True)
+        st.info("Loaded vectors from FAISS index.")
+    else:
+        # Vectorise the sales response csv data
+        loader = CSVLoader(file_path="Customer_Service_Assistants.csv")
+        documents = loader.load()
+        db = FAISS.from_documents(documents, embeddings)
+        db.save_local(FAISS_INDEX_PATH)
+        st.info("Created and saved vectors to FAISS index.") 
+    return db
+
+db = load_or_create_faiss_index()
 
 # Initialize conversation history in session state
 if "conversation_history" not in st.session_state:
@@ -115,7 +131,7 @@ def display_conversation_history():
 
 # 5. Build the app with streamlit
 def main():
-    st.set_page_config(page_title="CustomerCareBot", page_icon="🤖")
+    # st.set_page_config(page_title="CustomerCareBot", page_icon="🤖")
     st.header("CustomerCareBot 🤖")
 
     # Text area for user input
