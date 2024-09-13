@@ -8,6 +8,7 @@ from langchain.chains import LLMChain
 from langchain_core.runnables import RunnablePassthrough
 from dotenv import load_dotenv
 import os
+import json
 
 # Set the page configuration at the top of the script
 st.set_page_config(page_title="CustomerCareBot", page_icon="🤖")
@@ -52,6 +53,21 @@ def retrieve_info(query):
 
     return page_contents_array
 
+# Function to load support details from a JSON file
+def load_support_details(file_path="support_details.json"):
+    try:
+        with open(file_path, "r") as f:
+            support_details = json.load(f)
+        return support_details
+    except Exception as e:
+        print(f"Error loading support details: {e}")
+        return {}
+
+
+def fill_template_with_values(response_template, placeholder_values):
+    for placeholder, value in placeholder_values.items():
+        response_template = response_template.replace(f"{{{{{placeholder}}}}}", value)
+    return response_template
 
 # 3. Setup LLMChain & prompts
 llm = ChatOpenAI(temperature=0.7, model="gpt-3.5-turbo")
@@ -103,6 +119,10 @@ def get_contextual_input(conversation_history, new_message):
 
 # 4. Retrieval augmented generation
 def generate_response(message):
+    # Load the support details from a separate file
+    support_details = load_support_details()
+
+    # Get contextual input based on the conversation history
     contextual_input = get_contextual_input(st.session_state["conversation_history"], message)
     best_practice = retrieve_info(contextual_input)
 
@@ -113,6 +133,12 @@ def generate_response(message):
 
     # Generate the response using the LLM chain
     response = chain.invoke(input= input_data)
+
+    # Extract the 'content' from the AIMessage object
+    response_content = response.content if hasattr(response, 'content') else response
+
+    # Fill the template placeholders with actual values
+    response = fill_template_with_values(response_content, support_details)
 
     # Update conversation history
     update_conversation_history(message, response)
@@ -133,8 +159,11 @@ def display_conversation_history():
             # Display the user and bot message with a header "User:" and "Assistant:"
             st.info(f"**User:** {user_entry['content']}")
             st.write("------------------------------------------------")
-            st.info(f"**Assistant:** {bot_entry['content'].content}")
+            # st.info(f"**Assistant:** {bot_entry['content'].content}")
             # print (bot_entry)
+
+            bot_message = bot_entry['content'] if isinstance(bot_entry['content'], str) else bot_entry['content'].content
+            st.info(f"**Assistant:** {bot_message}")
 
 # 5. Build the app with streamlit
 def main():
