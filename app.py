@@ -5,7 +5,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain.chains import LLMChain
-# from langchain import RunnableSequence
+from langchain_core.runnables import RunnablePassthrough
 from dotenv import load_dotenv
 import os
 
@@ -81,7 +81,7 @@ prompt = PromptTemplate(
     template=template
 )
 
-chain = LLMChain(llm=llm, prompt=prompt)
+chain = prompt | llm
 
 # Function to update conversation history
 def update_conversation_history(user_message, bot_response):
@@ -105,17 +105,22 @@ def get_contextual_input(conversation_history, new_message):
 def generate_response(message):
     contextual_input = get_contextual_input(st.session_state["conversation_history"], message)
     best_practice = retrieve_info(contextual_input)
-    response = chain.run(message=contextual_input, best_practice=best_practice)
+
+    input_data = {
+        "message": contextual_input,
+        "best_practice": best_practice
+    }
+
+    # Generate the response using the LLM chain
+    response = chain.invoke(input= input_data)
+
+    # Update conversation history
     update_conversation_history(message, response)
+
     return response
 
 # Function to display conversation history
 def display_conversation_history():
-    # for entry in reversed(st.session_state["conversation_history"]):
-    #     role = "User" if entry["role"] == "user" else "Assistant"
-    #     st.info(f"**{role}:** {entry['content']}")
-    #     st.write("------------------------------------------------")
-    
     # Access the conversation history from the session state
     history = st.session_state["conversation_history"]
     for i in range(len(history) - 1, -1, -2):
@@ -124,10 +129,12 @@ def display_conversation_history():
             # Get the user message and assistant response
             user_entry = history[i - 1]
             bot_entry = history[i]
+
             # Display the user and bot message with a header "User:" and "Assistant:"
             st.info(f"**User:** {user_entry['content']}")
             st.write("------------------------------------------------")
-            st.info(f"**Assistant:** {bot_entry['content']}")
+            st.info(f"**Assistant:** {bot_entry['content'].content}")
+            # print (bot_entry)
 
 # 5. Build the app with streamlit
 def main():
